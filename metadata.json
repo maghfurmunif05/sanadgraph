@@ -1,0 +1,6 @@
+{
+  "name": "Jaringan Sanad dan Manuskrip Nusantara",
+  "description": "Visualisasi interaktif knowledge graph aliran sanad keilmuan, transmisi naskah, sejarah pesantren, dan ijazah ulama Nusantara.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
