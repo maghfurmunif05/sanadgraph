@@ -12,6 +12,8 @@ interface AdminDashboardProps {
   edges: GraphEdge[];
   onRefreshData: () => void;
   currentUserEmail: string;
+  activeSubTab?: 'node' | 'edge' | 'entitas';
+  onNavigate?: (path: string) => void;
 }
 
 export default function AdminDashboard({
@@ -19,17 +21,30 @@ export default function AdminDashboard({
   edges,
   onRefreshData,
   currentUserEmail,
+  activeSubTab,
+  onNavigate,
 }: AdminDashboardProps) {
-  // Login Gate State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [emailInput, setEmailInput] = useState(currentUserEmail || 'punkysme@gmail.com');
-  const [errorMsg, setErrorMsg] = useState('');
+  // Authentication is now fully delegated to the parent (App.tsx router view-gate)
+  const emailInput = currentUserEmail || 'maghfurmunif@gmail.com';
 
   // Tab State: 'quick-connect' | 'detail-manager'
   const [activeMenu, setActiveMenu] = useState<'quick-connect' | 'detail-manager'>('quick-connect');
 
   // --- Menu 1: Two Sub-Tabs state for "Tambah Node & Hubungan" ---
   const [menu1Tab, setMenu1Tab] = useState<'tambah_entitas' | 'hubungan'>('tambah_entitas');
+
+  // Sync menu state from URL path via activeSubTab
+  React.useEffect(() => {
+    if (activeSubTab === 'node') {
+      setActiveMenu('quick-connect');
+      setMenu1Tab('tambah_entitas');
+    } else if (activeSubTab === 'edge') {
+      setActiveMenu('quick-connect');
+      setMenu1Tab('hubungan');
+    } else if (activeSubTab === 'entitas') {
+      setActiveMenu('detail-manager');
+    }
+  }, [activeSubTab]);
 
   // Tab 1: Tambah Entitas Baru (Node) States
   const [nodeName, setNodeName] = useState('');
@@ -69,7 +84,7 @@ export default function AdminDashboard({
   // Detailed fields requested by the user
   const [editProfilAkademis, setEditProfilAkademis] = useState('');
   const [editAtributDinamis, setEditAtributDinamis] = useState<Array<{ key: string; value: string }>>([]);
-  const [editHistoriografi, setEditHistoriografi] = useState<Array<{
+  const [editHistoriGrid, setEditHistoriGrid] = useState<Array<{
     tahun_numerik: number;
     tahun_bebas: string;
     judul_milestone: string;
@@ -77,18 +92,11 @@ export default function AdminDashboard({
     uraian: string;
   }>>([]);
 
-  const [managerSuccess, setManagerSuccess] = useState('');
+  // Alias state for legacy bindings
+  const editHistoriografi = editHistoriGrid;
+  const setEditHistoriografi = setEditHistoriGrid;
 
-  // Handle simple login mock
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailInput || !emailInput.includes('@')) {
-      setErrorMsg('Masukkan alamat email yang valid.');
-      return;
-    }
-    setIsAuthenticated(true);
-    setErrorMsg('');
-  };
+  const [managerSuccess, setManagerSuccess] = useState('');
 
   // Sort nodes alphabetically for search/combobox selectors
   const sortedNodesAlpha = useMemo(() => {
@@ -271,62 +279,6 @@ export default function AdminDashboard({
     ).length;
   };
 
-  // RENDER LOGIN PAGE
-  if (!isAuthenticated) {
-    return (
-      <div className="max-w-md mx-auto my-16 bg-white border border-slate-200/95 rounded-3xl p-8 shadow-xl text-center">
-        <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <Lock className="w-6 h-6 text-emerald-600" />
-        </div>
-
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Otentikasi Administrator</h2>
-        <p className="text-slate-400 text-xs mt-1.5 leading-relaxed max-w-xs mx-auto">
-          Silakan masuk menggunakan email untuk mengawasi dan melakukan pembaruan manuskrip serta silsilah sanad.
-        </p>
-
-        <form onSubmit={handleLogin} className="mt-8 space-y-4 text-left">
-          {errorMsg && (
-            <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-semibold border border-red-150 flex items-center gap-2">
-              <X className="w-4 h-4" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">EMAIL ADMINISTRATOR</label>
-            <div className="relative">
-              <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
-              <input
-                type="email"
-                required
-                placeholder="isikan email admin"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3.5 pl-11 pr-4 text-xs font-medium text-slate-700 outline-none transition"
-                id="admin-email-input"
-              />
-            </div>
-          </div>
-
-          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-start gap-2 text-[10px] text-slate-500 leading-relaxed font-medium">
-            <Sparkles className="w-4.5 h-4.5 text-emerald-600 flex-shrink-0" />
-            <div>
-              <span className="font-bold text-slate-700">Quick Debug Access:</span> Untuk kemudahan review, alamat email di atas adalah alamat email Anda. Klik saja "Masuk" untuk akses instan.
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-emerald-600 hover:bg-emerald-700 font-bold text-xs py-3.5 text-white rounded-xl shadow-lg shadow-emerald-600/10 active:scale-[0.99] transition duration-150 cursor-pointer text-center block mt-6"
-            id="btn-admin-login"
-          >
-            Masuk Ke Dashboard
-          </button>
-        </form>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Top Welcome Admin Bar */}
@@ -345,7 +297,11 @@ export default function AdminDashboard({
         <div className="flex bg-slate-100 p-1 rounded-xl self-start border border-slate-200/50">
           <button
             type="button"
-            onClick={() => { setActiveMenu('quick-connect'); setEditingNode(null); }}
+            onClick={() => {
+              if (onNavigate) onNavigate('/admin/node');
+              else { setActiveMenu('quick-connect'); setMenu1Tab('tambah_entitas'); }
+              setEditingNode(null);
+            }}
             className={`px-4 py-2 text-xs font-bold rounded-lg transition duration-150 ${
               activeMenu === 'quick-connect' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -355,23 +311,17 @@ export default function AdminDashboard({
           </button>
           <button
             type="button"
-            onClick={() => { setActiveMenu('detail-manager'); setEditingNode(null); }}
+            onClick={() => {
+              if (onNavigate) onNavigate('/admin/entitas');
+              else { setActiveMenu('detail-manager'); }
+              setEditingNode(null);
+            }}
             className={`px-4 py-2 text-xs font-bold rounded-lg transition duration-150 ${
               activeMenu === 'detail-manager' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
             }`}
             id="tab-detail-manager"
           >
             Entity Detail Manager
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveMenu('settings'); setEditingNode(null); }}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition duration-150 ${
-              activeMenu === 'settings' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-            }`}
-            id="tab-cloud-settings"
-          >
-            Integrasi & Cloud Settings
           </button>
         </div>
       </div>
@@ -386,7 +336,10 @@ export default function AdminDashboard({
             <div className="flex bg-slate-100 p-1 rounded-xl self-start border border-slate-200/50 mb-6 max-w-sm">
               <button
                 type="button"
-                onClick={() => setMenu1Tab('tambah_entitas')}
+                onClick={() => {
+                  if (onNavigate) onNavigate('/admin/node');
+                  else setMenu1Tab('tambah_entitas');
+                }}
                 className={`flex-1 px-3 py-1.5 text-[11px] font-bold rounded-lg transition duration-150 ${
                   menu1Tab === 'tambah_entitas' ? 'bg-white text-slate-850 shadow-sm' : 'text-slate-450 hover:text-slate-700'
                 }`}
@@ -396,7 +349,10 @@ export default function AdminDashboard({
               </button>
               <button
                 type="button"
-                onClick={() => setMenu1Tab('hubungan')}
+                onClick={() => {
+                  if (onNavigate) onNavigate('/admin/edge');
+                  else setMenu1Tab('hubungan');
+                }}
                 className={`flex-1 px-3 py-1.5 text-[11px] font-bold rounded-lg transition duration-150 ${
                   menu1Tab === 'hubungan' ? 'bg-white text-slate-850 shadow-sm' : 'text-slate-450 hover:text-slate-700'
                 }`}
@@ -1158,166 +1114,6 @@ export default function AdminDashboard({
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {activeMenu === 'settings' && (
-        <div className="space-y-8 animate-fade-in">
-          {/* Cloud Integration Panel header */}
-          <div className="bg-slate-900 text-white rounded-3xl p-8 border border-slate-800 shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-              <Sparkles className="w-48 h-48" />
-            </div>
-            
-            <div className="relative z-10 space-y-4 max-w-2xl">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] bg-indigo-500 font-extrabold text-white uppercase px-2.5 py-0.5 rounded-full tracking-wider">Integrasi Cloud</span>
-                <span className="text-slate-400 font-mono text-xs">• Supabase, Dotenv, Cloudinary</span>
-              </div>
-              <h2 className="text-2xl font-black tracking-tight">Menyambungkan Database & Image Hosting</h2>
-              <p className="text-sm text-slate-300 leading-relaxed font-medium">
-                Sistem Jaringan Sanad ini siap dipindahkan dari basis data lokal (InMemory) ke arsitektur Cloud yang tangguh menggunakan <strong>Supabase</strong> (PostgreSQL) untuk persistensi data, <strong>Cloudinary</strong> untuk penyimpanan naskah & foto, serta dukungan <strong>.env</strong> lokal.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* 1. Supabase Postgres SQL Engine */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-5">
-              <div className="flex items-center gap-2.5 border-b pb-3 border-slate-150">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                  <Database className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">Supabase SQL Schema</h3>
-                  <p className="text-[11px] text-slate-400">Jalankan query ini di SQL Editor pada proyek Supabase Anda.</p>
-                </div>
-              </div>
-
-              <div className="relative">
-                <div className="absolute top-2 right-2 flex gap-2">
-                  <span className="text-[8px] font-mono bg-slate-100 border text-slate-500 rounded px-1.5 py-0.5 uppercase">Postgres Code</span>
-                </div>
-                <pre className="text-[10px] font-mono bg-slate-950 text-emerald-400 p-4 rounded-xl overflow-x-auto border border-slate-850 leading-relaxed font-semibold max-h-80 overflow-y-auto w-full">
-{`-- 1. Create Nodes Table
-CREATE TABLE nodes (
-  id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  name VARCHAR(255) NOT NULL,
-  type VARCHAR(255) NOT NULL,
-  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 2. Create Edges Table
-CREATE TABLE edges (
-  id VARCHAR(255) PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  source_node_id VARCHAR(255) REFERENCES nodes(id) ON DELETE CASCADE,
-  target_node_id VARCHAR(255) REFERENCES nodes(id) ON DELETE CASCADE,
-  edge_type VARCHAR(255) NOT NULL,
-  year_context INTEGER,
-  keterangan TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 3. Setup Row Level Security (RLS) - Opsional
-ALTER TABLE nodes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE edges ENABLE ROW LEVEL SECURITY;
-
--- Buat Policy agar semua pengguna di aplikasi dapat membaca
-CREATE POLICY "Allow public read-access nodes" ON nodes FOR SELECT USING (true);
-CREATE POLICY "Allow public read-access edges" ON edges FOR SELECT USING (true);
-
--- Buat Policy khusus admin untuk memanipulasi data
-CREATE POLICY "Allow full admin-access nodes" ON nodes FOR ALL USING (true);
-CREATE POLICY "Allow full admin-access edges" ON edges FOR ALL USING (true);
-`}
-                </pre>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                💡 <strong>Catatan DB:</strong> Schema di atas memisahkan Entitas Utama (Nodes) dan Relasi Sanad (Edges) dengan relasi <i>Foreign Key</i> yang aman. Kolom <code>metadata</code> bertipe JSONB menampung data dinamis seperti geospasial, atribut, dan riwayat naskah.
-              </p>
-            </div>
-
-            {/* 2. Environment Variables Settings */}
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-5">
-              <div className="flex items-center gap-2.5 border-b pb-3 border-slate-150">
-                <div className="p-2 bg-slate-100 text-slate-600 rounded-xl">
-                  <Settings className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">Environment Variables (.env)</h3>
-                  <p className="text-[11px] text-slate-400">Konfigurasi sandi rahasia pada server-side atau client bundler Anda.</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                  Salin baris-baris berikut dan letakkan pada fail <code>.env</code> Anda di folder utama proyek:
-                </p>
-
-                <div className="relative font-sans text-left">
-                  <pre className="text-[10px] font-mono bg-slate-900 text-indigo-300 p-4 rounded-xl overflow-x-auto border border-slate-800 leading-normal font-semibold w-full">
-{`# ----------------------------------------------------
-# SUPABASE CONNECTION CREDENTIALS
-# ----------------------------------------------------
-VITE_SUPABASE_URL=https://your-project-ref.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhY...your-anon-key
-
-# ----------------------------------------------------
-# CLOUDINARY IMAGE HOSTING INTEGRATION
-# ----------------------------------------------------
-VITE_CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-VITE_CLOUDINARY_UPLOAD_PRESET=your_unsigned_upload_preset
-CLOUDINARY_URL=cloudinary://api_key:api_secret@your_cloud_name
-`}
-                  </pre>
-                </div>
-
-                <div className="p-3.5 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-105 text-[11px] leading-relaxed font-medium">
-                  ⚠️ <strong>Keamanan Kunci:</strong> Gunakan prefix <code>VITE_</code> agar bundler client-side (seperti Vite) dapat membaca variabel tersebut secara langsung di komponen React Anda via <code>import.meta.env</code>.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Cloudinary Setup Details */}
-          <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-5">
-            <div className="flex items-center gap-2.5 border-b pb-3 border-slate-150">
-              <div className="p-2 bg-sky-50 text-sky-600 rounded-xl">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-800">Settingan Image Hosting Cloudinary</h3>
-                <p className="text-[11px] text-slate-400">Ikuti langkah berikut untuk mengaktifkan unggah gambar naskah mumpuni tanpa server.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-semibold">
-              <div className="p-4 bg-slate-50 border rounded-2xl space-y-2">
-                <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px]">1</div>
-                <h4 className="text-slate-800 font-bold">Daftar Akun Gratis</h4>
-                <p className="text-[11px] text-slate-400 leading-normal font-medium">
-                  Daftarkan diri di <a href="https://cloudinary.com" target="_blank" rel="noreferrer" className="text-indigo-650 underline">cloudinary.com</a>. Ambil nilai <strong>Cloud Name</strong> dari dashboard utama Anda.
-                </p>
-              </div>
-
-              <div className="p-4 bg-slate-50 border rounded-2xl space-y-2">
-                <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px]">2</div>
-                <h4 className="text-slate-800 font-bold">Unsigned Upload Preset</h4>
-                <p className="text-[11px] text-slate-400 leading-normal font-medium">
-                  Buka tab <strong>Settings</strong> &gt; <strong>Upload</strong>. Gulir kebawah ke bagian "Upload Presets" lalu klik "Add upload preset". Ubah mode menjadi <strong>Unsigned</strong> agar dapat diunggah langsung dari gawai pelanggan.
-                </p>
-              </div>
-
-              <div className="p-4 bg-slate-50 border rounded-2xl space-y-2">
-                <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[10px]">3</div>
-                <h4 className="text-slate-800 font-bold">Gunakan di Integrasi Media</h4>
-                <p className="text-[11px] text-slate-400 leading-normal font-medium">
-                  Gunakan URL endpoint upload langsung Cloudinary <code>https://api.cloudinary.com/v1_1/&lt;Cloud_Name&gt;/image/upload</code> menggunakan method <code>fetch(POST)</code> menyodorkan berkas berkode FormData.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
