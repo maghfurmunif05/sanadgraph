@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { GraphNode, GraphEdge, NodeType, EdgeType } from '../types';
-import { database } from '../lib/database';
-import { colorsByType } from './SidebarLegend';
+import { database } from '../services/database';
+import { colorsByType } from '../components/SidebarLegend';
 import { 
   Lock, Mail, Key, Sparkles, Plus, Edit2, Trash2, 
   Search, Link, Settings, Database, Activity, Check, X
@@ -426,7 +426,7 @@ export default function AdminDashboard({
 
                   <button
                     type="submit"
-                    className="w-full bg-indigo-650 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition shadow-md cursor-pointer text-center"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition shadow-md cursor-pointer text-center"
                     id="btn-save-new-node"
                   >
                     Simpan Entitas Baru
@@ -1009,7 +1009,7 @@ export default function AdminDashboard({
                 <div className="flex gap-4 items-center">
                   <button
                     type="submit"
-                    className="flex-1 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl tracking-wider transition cursor-pointer text-center"
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3.5 px-4 rounded-xl tracking-wider transition shadow-md cursor-pointer text-center"
                     id="btn-save-entity-details"
                   >
                     Simpan & Sinkronisasi Ke Database

@@ -1,16 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { GraphNode, GraphEdge, NodeType, EdgeType } from '../types';
 import { initialNodes, initialEdges } from '../data/seedData';
-
-// Attempt to read Supabase environment variables
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
-
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
-
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
 
 const LOCAL_NODES_KEY = 'jaringan_sanad_nodes';
 const LOCAL_EDGES_KEY = 'jaringan_sanad_edges';
@@ -193,7 +183,6 @@ export const database = {
         return newNode;
       } catch (err) {
         console.error('Supabase addNode failed, doing local insert:', err);
-        // Force throwing error to let AdminUI know it failed if needed, but we do fallback
       }
     }
 
@@ -349,7 +338,6 @@ export const database = {
     return true;
   },
 
-  // Helper getters to bypass async Supabase during fallback queries
   getNodesFromLocal: async (): Promise<GraphNode[]> => {
     const local = localStorage.getItem(LOCAL_NODES_KEY);
     return local ? JSON.parse(local) : initialNodes;
