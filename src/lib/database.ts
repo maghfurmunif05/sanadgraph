@@ -28,6 +28,7 @@ const initializeLocalStorage = () => {
 initializeLocalStorage();
 
 export const database = {
+  supabase,
   isSupabase: (): boolean => {
     return isSupabaseConfigured;
   },
@@ -147,7 +148,21 @@ export const database = {
   },
 
   addNode: async (node: { name: string; type: NodeType; metadata: any }): Promise<GraphNode> => {
-    const id = 'node-' + Math.random().toString(36).substr(2, 9);
+    // Generate a valid RFC4122 v4 UUID or fallback to ensure compatibility with UUID tables
+    let id = '';
+    try {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        id = crypto.randomUUID();
+      }
+    } catch (e) {}
+    if (!id) {
+      id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+
     const newNode: GraphNode = {
       id,
       name: node.name,
@@ -158,27 +173,27 @@ export const database = {
 
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('nodes')
           .insert({
+            id: newNode.id,
             name: newNode.name,
             type: newNode.type,
             metadata: newNode.metadata
-          })
-          .select()
-          .single();
+          });
 
-        if (error) throw error;
-        if (data) {
-          // If Supabase succeeded, return the database created object with generated UUID
-          // First, sync local storage for high cohesion
-          const localNodes = await database.getNodesFromLocal();
-          localNodes.push(data as GraphNode);
-          localStorage.setItem(LOCAL_NODES_KEY, JSON.stringify(localNodes));
-          return data as GraphNode;
+        if (error) {
+          throw error;
         }
+
+        // Successfully inserted! Sync local storage
+        const localNodes = await database.getNodesFromLocal();
+        localNodes.push(newNode);
+        localStorage.setItem(LOCAL_NODES_KEY, JSON.stringify(localNodes));
+        return newNode;
       } catch (err) {
         console.error('Supabase addNode failed, doing local insert:', err);
+        // Force throwing error to let AdminUI know it failed if needed, but we do fallback
       }
     }
 
@@ -190,7 +205,20 @@ export const database = {
   },
 
   addEdge: async (edge: { source_node_id: string; target_node_id: string; edge_type: EdgeType; year_context?: number }): Promise<GraphEdge> => {
-    const id = 'edge-' + Math.random().toString(36).substr(2, 9);
+    let id = '';
+    try {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        id = crypto.randomUUID();
+      }
+    } catch (e) {}
+    if (!id) {
+      id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+
     const newEdge: GraphEdge = {
       id,
       source_node_id: edge.source_node_id,
@@ -202,25 +230,25 @@ export const database = {
 
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('edges')
           .insert({
+            id: newEdge.id,
             source_node_id: edge.source_node_id,
             target_node_id: edge.target_node_id,
             edge_type: edge.edge_type,
             year_context: edge.year_context
-          })
-          .select()
-          .single();
+          });
 
-        if (error) throw error;
-        if (data) {
-          // Sync local
-          const localEdges = await database.getEdgesFromLocal();
-          localEdges.push(data as GraphEdge);
-          localStorage.setItem(LOCAL_EDGES_KEY, JSON.stringify(localEdges));
-          return data as GraphEdge;
+        if (error) {
+          throw error;
         }
+
+        // Sync local
+        const localEdges = await database.getEdgesFromLocal();
+        localEdges.push(newEdge);
+        localStorage.setItem(LOCAL_EDGES_KEY, JSON.stringify(localEdges));
+        return newEdge;
       } catch (err) {
         console.error('Supabase addEdge failed, doing local insert:', err);
       }

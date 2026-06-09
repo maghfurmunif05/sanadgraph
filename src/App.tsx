@@ -75,7 +75,10 @@ export default function App() {
     return null;
   });
 
-  const isAuthorized = adminUser && adminUser.email === 'maghfurmunif@gmail.com' && adminUser.uid === '2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e';
+  const isAuthorized = adminUser && (
+    adminUser.email === 'maghfurmunif@gmail.com' || 
+    adminUser.email === 'maghfurmunif@gmail'
+  );
 
   // Back-guard redirection for admin views
   useEffect(() => {
@@ -90,21 +93,64 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [loginSuccess, setLoginSuccess] = useState('');
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setLoginSuccess('');
 
-    if (loginEmail.trim() === 'maghfurmunif@gmail.com' && loginUid.trim() === '2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e') {
-      const u = { email: 'maghfurmunif@gmail.com', uid: '2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e' };
+    const formattedEmail = loginEmail.trim();
+    // Allow 'maghfurmunif@gmail', 'maghfurmunif', or full emails for ease of use
+    let finalEmail = formattedEmail;
+    if (formattedEmail === 'maghfurmunif@gmail') {
+      finalEmail = 'maghfurmunif@gmail.com';
+    } else if (formattedEmail === 'maghfurmunif') {
+      finalEmail = 'maghfurmunif@gmail.com';
+    } else if (!formattedEmail.includes('@') && formattedEmail !== '') {
+      finalEmail = `${formattedEmail}@gmail.com`;
+    }
+    const finalPassword = loginUid.trim();
+
+    let authenticatedSuccessfully = false;
+    let authUserEmail = '';
+    let authUserUid = '';
+
+    // If Supabase is active, attempt actual database user authentication
+    if (database.isSupabase() && database.supabase) {
+      try {
+        const { data, error } = await database.supabase.auth.signInWithPassword({
+          email: finalEmail,
+          password: finalPassword
+        });
+
+        if (!error && data?.user) {
+          authenticatedSuccessfully = true;
+          authUserEmail = data.user.email || finalEmail;
+          authUserUid = data.user.id || finalPassword;
+        }
+      } catch (err) {
+        console.warn('Real Supabase Auth failed, checking local credentials:', err);
+      }
+    }
+
+    // Checking if credentials match local config 'maghfurmunif@gmail.com' / 'maghfurmunif@gmail' or successful Supabase Auth
+    const isLocalMatch = (
+      (formattedEmail === 'maghfurmunif@gmail.com' || formattedEmail === 'maghfurmunif@gmail' || formattedEmail === 'maghfurmunif') && 
+      finalPassword === '2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e'
+    );
+
+    if (authenticatedSuccessfully || isLocalMatch) {
+      const u = { 
+        email: authUserEmail || 'maghfurmunif@gmail.com', 
+        uid: authUserUid || '2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e' 
+      };
       localStorage.setItem('sanad_admin_account', JSON.stringify(u));
       setAdminUser(u);
       setLoginSuccess('Login Administrator Berhasil!');
       setTimeout(() => {
         navigate('/admin/node');
-      }, 800);
+      }, 700);
     } else {
-      setLoginError('Email atau UID Admin tidak terdaftar/sesuai.');
+      setLoginError('Email atau Sandi/UID Admin tidak valid.');
     }
   };
 
@@ -575,7 +621,7 @@ export default function App() {
                       <div className="relative">
                         <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                         <input
-                          type="email"
+                          type="text"
                           required
                           placeholder="maghfurmunif@gmail.com"
                           value={loginEmail}
@@ -586,16 +632,16 @@ export default function App() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">ADMIN UID / SANDI RAHASIA</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">KATA SANDI ADMINISTRATOR</label>
                       <div className="relative">
                         <Key className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                         <input
                           type="password"
                           required
-                          placeholder="2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e"
+                          placeholder="••••••••"
                           value={loginUid}
                           onChange={(e) => setLoginUid(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 pl-11 pr-4 text-xs font-mono font-black tracking-widest text-slate-700 outline-none transition"
+                          className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 pl-11 pr-4 text-xs font-medium text-slate-700 outline-none transition"
                         />
                       </div>
                     </div>
@@ -603,7 +649,7 @@ export default function App() {
                     <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 flex items-start gap-2 text-[10px] text-slate-500 leading-relaxed font-medium">
                       <Sparkles className="w-4.5 h-4.5 text-emerald-600 flex-shrink-0" />
                       <div>
-                        Gunakan UID Admin <code className="bg-slate-200 px-1 rounded select-all font-mono font-bold text-slate-700">2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e</code> untuk masuk dan menguji fungsionalitas panel tulis/edit silsilah dan bibliografi secara penuh.
+                        Masuki panel dengan akun utama <strong className="text-slate-750">maghfurmunif@gmail.com</strong> dan kata sandi yang telah Anda daftarkan di konsol Supabase Auth. Untuk pengujian luring/backup, sandi default yang berlaku adalah <code className="bg-slate-200 px-1 rounded font-mono font-bold text-slate-700">2a6a3425-0cb6-4e5d-bf6e-8b6dd0b3797e</code>.
                       </div>
                     </div>
 
