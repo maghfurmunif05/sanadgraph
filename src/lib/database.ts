@@ -80,7 +80,41 @@ export const database = {
           .order('name', { ascending: true });
 
         if (error) throw error;
-        if (data && data.length > 0) {
+        
+        // Auto-seed if database is empty but initialized
+        if (data && data.length === 0) {
+          console.log('Supabase nodes are empty. Seeding initial network entries...');
+          // Seed nodes
+          const formattedNodes = initialNodes.map(n => ({
+            id: n.id,
+            name: n.name,
+            type: n.type,
+            metadata: n.metadata
+          }));
+          const { error: nodeErr } = await supabase.from('nodes').insert(formattedNodes);
+          if (!nodeErr) {
+            // Seed edges
+            const formattedEdges = initialEdges.map(e => ({
+              id: e.id,
+              source_node_id: e.source_node_id,
+              target_node_id: e.target_node_id,
+              edge_type: e.edge_type,
+              year_context: e.year_context
+            }));
+            await supabase.from('edges').insert(formattedEdges);
+
+            // Refetch nodes
+            const { data: refetched } = await supabase
+              .from('nodes')
+              .select('*')
+              .order('name', { ascending: true });
+            if (refetched && refetched.length > 0) {
+              return refetched as GraphNode[];
+            }
+          }
+        }
+
+        if (data) {
           return data as GraphNode[];
         }
       } catch (err) {
@@ -101,9 +135,7 @@ export const database = {
           .select('*');
 
         if (error) throw error;
-        if (data && data.length > 0) {
-          return data as GraphEdge[];
-        }
+        return data as GraphEdge[];
       } catch (err) {
         console.error('Supabase getEdges failed, relying on localStorage:', err);
       }
