@@ -576,7 +576,9 @@ export default function AdminDashboard({
                       >
                         <option value="Tokoh / Kiai">Tokoh / Kiai</option>
                         <option value="Kitab / Manuskrip">Kitab / Manuskrip</option>
-                        <option value="Pesantren">Pesantren</option>
+                        <option value="Ijazah">Ijazah Sanad</option>
+                        <option value="Pesantren">Pondok Pesantren</option>
+                        <option value="Alumni">Alumni Penting</option>
                         <option value="Tradisi Pembelajaran">Tradisi Pembelajaran</option>
                       </select>
                     </div>
