@@ -137,7 +137,7 @@ export const database = {
     return local ? JSON.parse(local) : initialEdges;
   },
 
-  addNode: async (node: { name: string; type: NodeType; metadata: any }): Promise<GraphNode> => {
+  addNode: async (node: { name: string; type: NodeType; metadata: any; source_file?: string }): Promise<GraphNode> => {
     // Generate a valid RFC4122 v4 UUID or fallback to ensure compatibility with UUID tables
     let id = '';
     try {
@@ -158,6 +158,7 @@ export const database = {
       name: node.name,
       type: node.type,
       metadata: node.metadata,
+      source_file: node.source_file,
       created_at: new Date().toISOString()
     };
 
@@ -169,7 +170,8 @@ export const database = {
             id: newNode.id,
             name: newNode.name,
             type: newNode.type,
-            metadata: newNode.metadata
+            metadata: newNode.metadata,
+            source_file: newNode.source_file
           });
 
         if (error) {
@@ -193,7 +195,7 @@ export const database = {
     return newNode;
   },
 
-  addEdge: async (edge: { source_node_id: string; target_node_id: string; edge_type: EdgeType; year_context?: number }): Promise<GraphEdge> => {
+  addEdge: async (edge: { source_node_id: string; target_node_id: string; edge_type: EdgeType; year_context?: number; source_file?: string }): Promise<GraphEdge> => {
     let id = '';
     try {
       if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -214,6 +216,7 @@ export const database = {
       target_node_id: edge.target_node_id,
       edge_type: edge.edge_type,
       year_context: edge.year_context,
+      source_file: edge.source_file,
       created_at: new Date().toISOString()
     };
 
@@ -226,7 +229,8 @@ export const database = {
             source_node_id: edge.source_node_id,
             target_node_id: edge.target_node_id,
             edge_type: edge.edge_type,
-            year_context: edge.year_context
+            year_context: edge.year_context,
+            source_file: edge.source_file
           });
 
         if (error) {
@@ -258,7 +262,8 @@ export const database = {
           .update({
             name: updates.name,
             type: updates.type,
-            metadata: updates.metadata
+            metadata: updates.metadata,
+            source_file: updates.source_file
           })
           .eq('id', id)
           .select()
@@ -288,6 +293,47 @@ export const database = {
     nodes[index] = { ...nodes[index], ...updates };
     localStorage.setItem(LOCAL_NODES_KEY, JSON.stringify(nodes));
     return nodes[index];
+  },
+
+  updateEdge: async (id: string, updates: Partial<GraphEdge>): Promise<GraphEdge> => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('edges')
+          .update({
+            source_node_id: updates.source_node_id,
+            target_node_id: updates.target_node_id,
+            edge_type: updates.edge_type,
+            year_context: updates.year_context,
+            source_file: updates.source_file
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          const localEdges = await database.getEdgesFromLocal();
+          const idx = localEdges.findIndex(e => e.id === id);
+          if (idx !== -1) {
+            localEdges[idx] = { ...localEdges[idx], ...updates, id };
+            localStorage.setItem(LOCAL_EDGES_KEY, JSON.stringify(localEdges));
+          }
+          return data as GraphEdge;
+        }
+      } catch (err) {
+        console.error('Supabase updateEdge failed, doing local update:', err);
+      }
+    }
+
+    // Local update
+    const edges = await database.getEdgesFromLocal();
+    const index = edges.findIndex(e => e.id === id);
+    if (index === -1) throw new Error(`Edge with ID ${id} not found.`);
+    
+    edges[index] = { ...edges[index], ...updates };
+    localStorage.setItem(LOCAL_EDGES_KEY, JSON.stringify(edges));
+    return edges[index];
   },
 
   deleteNode: async (id: string): Promise<boolean> => {

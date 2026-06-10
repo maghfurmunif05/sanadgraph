@@ -167,23 +167,29 @@ export default function GraphCanvas({
       .data(d3Edges)
       .enter()
       .append('line')
+      .attr('class', (d) => {
+        if (selectedNode && connectedEdgeIds.has(d.id)) {
+          return 'active-connected-edge';
+        }
+        return 'normal-edge';
+      })
       .attr('stroke-width', (d) => {
         if (selectedNode) {
-          return connectedEdgeIds.has(d.id) ? 3.5 : 1;
+          return connectedEdgeIds.has(d.id) ? 2.2 : 0.8;
         }
-        return 1.5;
+        return 1.4;
       })
       .attr('stroke', (d) => {
         if (selectedNode) {
-          return connectedEdgeIds.has(d.id) ? '#10b981' : '#f1f5f9';
+          return connectedEdgeIds.has(d.id) ? '#059669' : '#cbd5e1';
         }
-        return '#cbd5e1';
+        return '#94a3b8';
       })
       .attr('stroke-opacity', (d) => {
         if (selectedNode) {
-          return connectedEdgeIds.has(d.id) ? 1.0 : 0.15;
+          return connectedEdgeIds.has(d.id) ? 1.0 : 0.2;
         }
-        return 0.85;
+        return 0.75;
       })
       .style('filter', (d) => {
         if (selectedNode && connectedEdgeIds.has(d.id)) {
@@ -192,9 +198,12 @@ export default function GraphCanvas({
         return null;
       })
       .attr('stroke-dasharray', (d) => {
+        if (selectedNode && connectedEdgeIds.has(d.id)) {
+          return '6,4';
+        }
         // Dash format for alumni/tradisi relationships to add premium texture
         if (d.edge_type === 'alumni' || d.edge_type === 'tradisi_bandongan' || d.edge_type === 'tradisi_sorogan') {
-          return '4,4';
+          return '3,3';
         }
         return null;
       })

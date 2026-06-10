@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@keyframes edge-flow {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.active-connected-edge {
+  animation: edge-flow 1.2s linear infinite;
+  stroke-dasharray: 6, 4;
+}

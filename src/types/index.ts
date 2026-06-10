@@ -39,6 +39,7 @@ export interface GraphNode {
   type: NodeType;
   metadata: NodeMetadata;
   created_at?: string;
+  source_file?: string;
   
   // D3 forces properties
   x?: number;
@@ -56,6 +57,7 @@ export interface GraphEdge {
   edge_type: EdgeType;
   year_context?: number;
   created_at?: string;
+  source_file?: string;
   
   // D3 graph link properties (can be string, number or actual Node object)
   source?: string | GraphNode;

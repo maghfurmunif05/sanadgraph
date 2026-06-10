@@ -2,10 +2,102 @@ import React, { useState, useMemo } from 'react';
 import { GraphNode, GraphEdge, NodeType, EdgeType } from '../types';
 import { database } from '../services/database';
 import { colorsByType } from '../components/SidebarLegend';
+import { uploadImageToCloudinary } from '../lib/cloudinary';
 import { 
   Lock, Mail, Key, Sparkles, Plus, Edit2, Trash2, 
-  Search, Link, Settings, Database, Activity, Check, X
+  Search, Link, Settings, Database, Activity, Check, X, FileUp
 } from 'lucide-react';
+
+// Reusable custom file uploader component connecting directly with Cloudinary
+const FileUploader = ({ 
+  label, 
+  value, 
+  onChange, 
+  idPrefix 
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (url: string) => void; 
+  idPrefix: string;
+}) => {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setError('');
+    try {
+      const url = await uploadImageToCloudinary(file);
+      onChange(url);
+    } catch (err: any) {
+      console.error(err);
+      setError('Gagal mengunggah berkas. Periksa koneksi atau ukuran dokumen.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5 bg-slate-50/50 p-4 border border-slate-200/60 rounded-2xl">
+      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">{label}</label>
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            onChange={handleFileChange}
+            className="hidden"
+            id={`${idPrefix}-upload-input`}
+          />
+          <button
+            type="button"
+            onClick={() => document.getElementById(`${idPrefix}-upload-input`)?.click()}
+            disabled={uploading}
+            className={`px-4 py-2.5 text-xs font-bold rounded-xl border transition cursor-pointer flex items-center gap-2 ${
+              uploading 
+                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' 
+                : 'bg-white border-slate-250 text-slate-700 hover:bg-slate-50 shadow-xs'
+            }`}
+          >
+            <FileUp className="w-4 h-4 text-emerald-600" />
+            {uploading ? 'Mengunggah ke Cloudinary...' : 'Pilih Foto / Dokumen PDF'}
+          </button>
+          
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              className="px-3.5 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 border border-red-200 rounded-xl transition cursor-pointer"
+            >
+              Hapus
+            </button>
+          )}
+        </div>
+
+        {error && <span className="text-[10px] text-red-500 font-bold">{error}</span>}
+        
+        {value ? (
+          <div className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200/80 p-2.5 rounded-xl flex items-center justify-between gap-1.5 mt-1">
+            <span className="truncate max-w-[260px] font-mono text-[10px] text-slate-500">{value}</span>
+            <a
+              href={value}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-700 hover:underline font-bold text-[10px] shrink-0 bg-emerald-50 px-2 py-1 rounded"
+            >
+              Buka Berkas ↗
+            </a>
+          </div>
+        ) : (
+          <div className="text-[10px] text-slate-400 italic">Belum ada berkas Sumber (Source) yang diisi.</div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface AdminDashboardProps {
   nodes: GraphNode[];
@@ -50,6 +142,7 @@ export default function AdminDashboard({
   const [nodeName, setNodeName] = useState('');
   const [nodeTypeState, setNodeTypeState] = useState<NodeType>('Tokoh / Kiai');
   const [nodeDeskripsiRingkas, setNodeDeskripsiRingkas] = useState('');
+  const [nodeSourceFile, setNodeSourceFile] = useState('');
   const [nodeSuccessMsg, setNodeSuccessMsg] = useState('');
 
   // Tab 2: Hubungan States
@@ -58,7 +151,17 @@ export default function AdminDashboard({
   const [relTypeState, setRelTypeState] = useState<EdgeType>('belajar_kepada');
   const [relEstYear, setRelEstYear] = useState('');
   const [relKeterangan, setRelKeterangan] = useState('');
+  const [relSourceFile, setRelSourceFile] = useState('');
   const [relSuccessMsg, setRelSuccessMsg] = useState('');
+
+  // Edge editing state variables
+  const [editingEdge, setEditingEdge] = useState<GraphEdge | null>(null);
+  const [editEdgeSourceId, setEditEdgeSourceId] = useState('');
+  const [editEdgeTargetId, setEditEdgeTargetId] = useState('');
+  const [editEdgeType, setEditEdgeType] = useState<EdgeType>('belajar_kepada');
+  const [editEdgeYear, setEditEdgeYear] = useState('');
+  const [editEdgeSourceFile, setEditEdgeSourceFile] = useState('');
+  const [edgeSuccessMsg, setEdgeSuccessMsg] = useState('');
 
   // --- Menu 2: Entity Detail Manager State ---
   const [managerSearch, setManagerSearch] = useState('');
@@ -75,6 +178,7 @@ export default function AdminDashboard({
   const [editTahunKeMekkah, setEditTahunKeMekkah] = useState('');
   const [editCatatanPerjalanan, setEditCatatanPerjalanan] = useState('');
   const [editBiografi, setEditBiografi] = useState('');
+  const [editSourceFile, setEditSourceFile] = useState('');
   
   const [editPenulis, setEditPenulis] = useState('');
   const [editTahunPenulisan, setEditTahunPenulisan] = useState('');
@@ -120,12 +224,14 @@ export default function AdminDashboard({
         metadata: {
           deskripsi: nodeDeskripsiRingkas.trim() || undefined,
           biografi: nodeDeskripsiRingkas.trim() || undefined
-        }
+        },
+        source_file: nodeSourceFile || undefined
       });
 
       setNodeSuccessMsg(`Entitas "${added.name}" berhasil ditambahkan ke jaringan Nusantara!`);
       setNodeName('');
       setNodeDeskripsiRingkas('');
+      setNodeSourceFile('');
       onRefreshData();
     } catch (err) {
       console.error(err);
@@ -154,7 +260,8 @@ export default function AdminDashboard({
         source_node_id: relSenderId,
         target_node_id: relReceiverId,
         edge_type: relTypeState,
-        year_context: yearVal
+        year_context: yearVal,
+        source_file: relSourceFile || undefined
       });
 
       setRelSuccessMsg('Sambungan sanad baru berhasil dicatat dan dipetakan secara simultan!');
@@ -162,10 +269,72 @@ export default function AdminDashboard({
       setRelReceiverId('');
       setRelEstYear('');
       setRelKeterangan('');
+      setRelSourceFile('');
       onRefreshData();
     } catch (err) {
       console.error(err);
       alert('Gagal menghubungkan entitas.');
+    }
+  };
+
+  // Edge editing logic
+  const startEditingEdge = (edge: GraphEdge) => {
+    setEditingEdge(edge);
+    setEditEdgeSourceId(typeof edge.source === 'object' ? (edge.source as any).id : edge.source_node_id);
+    setEditEdgeTargetId(typeof edge.target === 'object' ? (edge.target as any).id : edge.target_node_id);
+    setEditEdgeType(edge.edge_type);
+    setEditEdgeYear(edge.year_context?.toString() || '');
+    setEditEdgeSourceFile(edge.source_file || '');
+    setEdgeSuccessMsg('');
+  };
+
+  const handleSaveEdgeDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEdge) return;
+
+    if (!editEdgeSourceId || !editEdgeTargetId) {
+      alert('Silakan pilih pengirim dan penerima hubungan!');
+      return;
+    }
+
+    if (editEdgeSourceId === editEdgeTargetId) {
+      alert('Pengirim dan penerima tidak boleh merupakan entitas yang sama!');
+      return;
+    }
+
+    try {
+      const yearVal = editEdgeYear ? parseInt(editEdgeYear) : undefined;
+      await database.updateEdge(editingEdge.id, {
+        source_node_id: editEdgeSourceId,
+        target_node_id: editEdgeTargetId,
+        edge_type: editEdgeType,
+        year_context: yearVal,
+        source_file: editEdgeSourceFile || undefined
+      });
+
+      setEdgeSuccessMsg('Hubungan relasi berhasil diperbarui dan diselaraskan!');
+      setEditingEdge(null);
+      setEditEdgeSourceId('');
+      setEditEdgeTargetId('');
+      setEditEdgeYear('');
+      setEditEdgeSourceFile('');
+      onRefreshData();
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menyinkronkan pembaruan hubungan.');
+    }
+  };
+
+  const handleDeleteEdge = async (id: string) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus hubungan relasi ini secara permanen?')) {
+      try {
+        await database.deleteEdge(id);
+        setEdgeSuccessMsg('Hubungan relasi berhasil dihapus dari jaringan.');
+        onRefreshData();
+      } catch (err) {
+        console.error(err);
+        alert('Gagal menghapus hubungan.');
+      }
     }
   };
 
@@ -183,6 +352,7 @@ export default function AdminDashboard({
     setEditingNode(node);
     setEditName(node.name);
     setEditType(node.type);
+    setEditSourceFile(node.source_file || '');
 
     const m = node.metadata || {};
     setEditTahunLahir(m.tahun_lahir?.toString() || '');
@@ -247,6 +417,7 @@ export default function AdminDashboard({
       await database.updateNode(editingNode.id, {
         name: editName,
         type: editType,
+        source_file: editSourceFile || undefined,
         metadata: nextMeta
       });
 
@@ -424,6 +595,13 @@ export default function AdminDashboard({
                     />
                   </div>
 
+                  <FileUploader 
+                    label="Dokumen / Foto Source (Unggah ke Cloudinary)" 
+                    value={nodeSourceFile} 
+                    onChange={setNodeSourceFile} 
+                    idPrefix="node-create" 
+                  />
+
                   <button
                     type="submit"
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition shadow-md cursor-pointer text-center"
@@ -437,7 +615,7 @@ export default function AdminDashboard({
               /* TAB 2: HUBUNGAN */
               <div className="space-y-6">
                 <div className="flex items-center gap-2 mb-1">
-                  <Link className="w-5 h-5 text-emerald-650" />
+                  <Link className="w-5 h-5 text-emerald-605" />
                   <h2 className="text-base font-bold text-slate-800">Hubungan Sanad (Edge)</h2>
                 </div>
                 <p className="text-xs text-slate-400">
@@ -451,102 +629,342 @@ export default function AdminDashboard({
                   </div>
                 )}
 
-                <form onSubmit={handleAddRelationship} className="space-y-5">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    
-                    {/* Pengirim */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PENGIRIM (SOURCE)</label>
-                      <select
-                        required
-                        value={relSenderId}
-                        onChange={(e) => setRelSenderId(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
-                        id="select-rel-sender"
-                      >
-                        <option value="">-- Pilih Pengirim (Asal) --</option>
-                        {sortedNodesAlpha.map(n => (
-                          <option key={n.id} value={n.id}>{n.name} ({n.type})</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Penerima */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PENERIMA (TARGET)</label>
-                      <select
-                        required
-                        value={relReceiverId}
-                        onChange={(e) => setRelReceiverId(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
-                        id="select-rel-receiver"
-                      >
-                        <option value="">-- Pilih Penerima (Tujuan) --</option>
-                        {sortedNodesAlpha.map(n => (
-                          <option key={n.id} value={n.id}>{n.name} ({n.type})</option>
-                        ))}
-                      </select>
-                    </div>
+                {edgeSuccessMsg && (
+                  <div className="p-4 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-150 text-xs font-semibold flex items-center gap-2.5">
+                    <Check className="w-5 h-5 text-emerald-600" />
+                    <span>{edgeSuccessMsg}</span>
                   </div>
+                )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    
-                    {/* Bentuk Hubungan */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">BENTUK HUBUNGAN (RELATION)</label>
-                      <select
-                        value={relTypeState}
-                        onChange={(e) => setRelTypeState(e.target.value as EdgeType)}
-                        className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
-                        id="select-rel-type"
+                {editingEdge ? (
+                  <div className="bg-indigo-50/25 border border-indigo-150 p-6 rounded-2xl space-y-5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Edit2 className="w-4.5 h-4.5 text-indigo-600" />
+                        <h3 className="text-sm font-bold text-slate-800">Ubah Rincian Hubungan Sanad</h3>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setEditingEdge(null)}
+                        className="p-1 hover:bg-slate-200 rounded text-slate-500"
                       >
-                        <option value="belajar_kepada">Berguru / belajar_kepada</option>
-                        <option value="mengajar">Mengajar ke / mengajar</option>
-                        <option value="menyalin">Penyusunan naskah / menyalin</option>
-                        <option value="memiliki">Pembawa naskah / memiliki</option>
-                        <option value="memberi_ijazah">Menganugerahkan ijazah / memberi_ijazah</option>
-                        <option value="baiat">Menerima baiat tarekat / baiat</option>
-                        <option value="alumni">Tamatan institusi / alumni</option>
-                        <option value="tradisi_bandongan">Penerapan tradisi_bandongan</option>
-                        <option value="tradisi_sorogan">Penerapan tradisi_sorogan</option>
-                      </select>
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
 
-                    {/* Estimasi Tahun */}
+                    <form onSubmit={handleSaveEdgeDetails} className="space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PENGIRIM (SOURCE)</label>
+                          <select
+                            required
+                            value={editEdgeSourceId}
+                            onChange={(e) => setEditEdgeSourceId(e.target.value)}
+                            className="w-full bg-white border border-slate-250 focus:ring-2 focus:ring-indigo-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          >
+                            <option value="">-- Pilih Pengirim --</option>
+                            {sortedNodesAlpha.map(n => (
+                              <option key={n.id} value={n.id}>{n.name} ({n.type})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PENERIMA (TARGET)</label>
+                          <select
+                            required
+                            value={editEdgeTargetId}
+                            onChange={(e) => setEditEdgeTargetId(e.target.value)}
+                            className="w-full bg-white border border-slate-250 focus:ring-2 focus:ring-indigo-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          >
+                            <option value="">-- Pilih Penerima --</option>
+                            {sortedNodesAlpha.map(n => (
+                              <option key={n.id} value={n.id}>{n.name} ({n.type})</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">BENTUK HUBUNGAN (RELATION)</label>
+                          <select
+                            value={editEdgeType}
+                            onChange={(e) => setEditEdgeType(e.target.value as EdgeType)}
+                            className="w-full bg-white border border-slate-250 focus:ring-2 focus:ring-indigo-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          >
+                            <option value="belajar_kepada">Berguru / belajar_kepada</option>
+                            <option value="mengajar">Mengajar ke / mengajar</option>
+                            <option value="menyalin">Penyusunan naskah / menyalin</option>
+                            <option value="memiliki">Pembawa naskah / memiliki</option>
+                            <option value="memberi_ijazah">Menganugerahkan ijazah / memberi_ijazah</option>
+                            <option value="baiat">Menerima baiat tarekat / baiat</option>
+                            <option value="alumni">Tamatan institusi / alumni</option>
+                            <option value="tradisi_bandongan">Penerapan tradisi_bandongan</option>
+                            <option value="tradisi_sorogan">Penerapan tradisi_sorogan</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">ESTIMASI TAHUN (M)</label>
+                          <input
+                            type="number"
+                            value={editEdgeYear}
+                            onChange={(e) => setEditEdgeYear(e.target.value)}
+                            className="w-full bg-white border border-slate-250 focus:ring-2 focus:ring-indigo-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          />
+                        </div>
+                      </div>
+
+                      <FileUploader 
+                        label="Dokumen / Foto Source Edit (Unggah ke Cloudinary)" 
+                        value={editEdgeSourceFile} 
+                        onChange={setEditEdgeSourceFile} 
+                        idPrefix="rel-edit" 
+                      />
+
+                      <div className="flex gap-3">
+                        <button
+                          type="submit"
+                          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition cursor-pointer"
+                        >
+                          Simpan Perubahan Relasi
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingEdge(null)}
+                          className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-650 font-bold rounded-xl text-xs transition cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <form onSubmit={handleAddRelationship} className="space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Pengirim */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PENGIRIM (SOURCE)</label>
+                        <select
+                          required
+                          value={relSenderId}
+                          onChange={(e) => setRelSenderId(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          id="select-rel-sender"
+                        >
+                          <option value="">-- Pilih Pengirim (Asal) --</option>
+                          {sortedNodesAlpha.map(n => (
+                            <option key={n.id} value={n.id}>{n.name} ({n.type})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Penerima */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PENERIMA (TARGET)</label>
+                        <select
+                          required
+                          value={relReceiverId}
+                          onChange={(e) => setRelReceiverId(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          id="select-rel-receiver"
+                        >
+                          <option value="">-- Pilih Penerima (Tujuan) --</option>
+                          {sortedNodesAlpha.map(n => (
+                            <option key={n.id} value={n.id}>{n.name} ({n.type})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {/* Bentuk Hubungan */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">BENTUK HUBUNGAN (RELATION)</label>
+                        <select
+                          value={relTypeState}
+                          onChange={(e) => setRelTypeState(e.target.value as EdgeType)}
+                          className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          id="select-rel-type"
+                        >
+                          <option value="belajar_kepada">Berguru / belajar_kepada</option>
+                          <option value="mengajar">Mengajar ke / mengajar</option>
+                          <option value="menyalin">Penyusunan naskah / menyalin</option>
+                          <option value="memiliki">Pembawa naskah / memiliki</option>
+                          <option value="memberi_ijazah">Menganugerahkan ijazah / memberi_ijazah</option>
+                          <option value="baiat">Menerima baiat tarekat / baiat</option>
+                          <option value="alumni">Tamatan institusi / alumni</option>
+                          <option value="tradisi_bandongan">Penerapan tradisi_bandongan</option>
+                          <option value="tradisi_sorogan">Penerapan tradisi_sorogan</option>
+                        </select>
+                      </div>
+
+                      {/* Estimasi Tahun */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">ESTIMASI TAHUN (M)</label>
+                        <input
+                          type="number"
+                          placeholder="Contoh: 1888 (Opsional)"
+                          value={relEstYear}
+                          onChange={(e) => setRelEstYear(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
+                          id="input-rel-year"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Keterangan */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">ESTIMASI TAHUN (M)</label>
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">KETERANGAN</label>
                       <input
-                        type="number"
-                        placeholder="Contoh: 1888 (Opsional)"
-                        value={relEstYear}
-                        onChange={(e) => setRelEstYear(e.target.value)}
+                        type="text"
+                        placeholder="Hubungan detail, catatan periwayatan, dsb."
+                        value={relKeterangan}
+                        onChange={(e) => setRelKeterangan(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
-                        id="input-rel-year"
+                        id="input-rel-notes"
                       />
                     </div>
-                  </div>
 
-                  {/* Keterangan */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">KETERANGAN</label>
-                    <input
-                      type="text"
-                      placeholder="Hubungan detail, catatan periwayatan, dsb."
-                      value={relKeterangan}
-                      onChange={(e) => setRelKeterangan(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-emerald-500 rounded-xl py-3 px-4 text-xs font-semibold outline-none transition"
-                      id="input-rel-notes"
+                    <FileUploader 
+                      label="Dokumen / Foto Source (Unggah ke Cloudinary)" 
+                      value={relSourceFile} 
+                      onChange={setRelSourceFile} 
+                      idPrefix="rel-create" 
                     />
+
+                    <button
+                      type="submit"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition shadow-md cursor-pointer text-center"
+                      id="btn-save-relationship"
+                    >
+                      Simpan Hubungan Relasi
+                    </button>
+                  </form>
+                )}
+
+                {/* RELATIONSHIP LIST & NODES DIRECTORY */}
+                <div className="border-t border-slate-100 pt-6 space-y-6">
+                  
+                  {/* Daftar Hubungan Table */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                      <span>Daftar Hubungan Relasi Hub (Total: {edges.length})</span>
+                      <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-bold normal-case">Admin Terverifikasi</span>
+                    </h3>
+                    
+                    <div className="max-h-[360px] overflow-y-auto border border-slate-150 rounded-2xl bg-white shadow-xs">
+                      {edges.length > 0 ? (
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50/75 border-b border-slate-150 text-slate-500 text-[10px] font-black uppercase tracking-wider">
+                              <th className="p-3">Sumber (Source)</th>
+                              <th className="p-3">Relasi</th>
+                              <th className="p-3">Tujuan (Target)</th>
+                              <th className="p-3">Tahun & Sumber Dokumen</th>
+                              <th className="p-3 text-right">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                            {edges.map((e) => {
+                              const sourceId = typeof e.source === 'object' ? (e.source as any).id : e.source_node_id;
+                              const targetId = typeof e.target === 'object' ? (e.target as any).id : e.target_node_id;
+                              
+                              const sourceName = nodes.find(n => n.id === sourceId)?.name || 'Tidak ditemukan';
+                              const targetName = nodes.find(n => n.id === targetId)?.name || 'Tidak ditemukan';
+
+                              return (
+                                <tr key={e.id} className="hover:bg-slate-50/50 transition">
+                                  <td className="p-3 max-w-[140px] truncate">{sourceName}</td>
+                                  <td className="p-3">
+                                    <span className="bg-indigo-50 text-indigo-750 border border-indigo-100 px-2 py-0.5 rounded-full text-[9px] font-black">
+                                      {e.edge_type}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 max-w-[140px] truncate">{targetName}</td>
+                                  <td className="p-3">
+                                    <div className="flex flex-col gap-0.5">
+                                      {e.year_context && <span className="font-mono text-[10px] font-bold text-slate-500">{e.year_context} M</span>}
+                                      {e.source_file ? (
+                                        <a 
+                                          href={e.source_file}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-[10px] text-emerald-650 font-black hover:underline flex items-center gap-0.5"
+                                        >
+                                          <Link className="w-2.5 h-2.5" /> Source Berkas
+                                        </a>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-400 font-medium italic">No File</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-right shrink-0">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditingEdge(e)}
+                                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition overflow-hidden cursor-pointer"
+                                        title="Ubah relasi"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteEdge(e.id)}
+                                        className="p-1.5 text-slate-500 hover:text-red-650 hover:bg-slate-100 rounded-lg transition overflow-hidden cursor-pointer"
+                                        title="Hapus relasi"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="p-8 text-center text-slate-400 italic font-medium">Belum ada hubungan relasi sanad terdaftar.</div>
+                      )}
+                    </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition shadow-md cursor-pointer text-center"
-                    id="btn-save-relationship"
-                  >
-                    Simpan Hubungan Relasi
-                  </button>
-                </form>
+                  {/* Daftar Semua Node Reference Grid */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                      Daftar Kontak Node Referensi (Silakan Klik ID untuk Menyalin)
+                    </h3>
+                    <div className="max-h-[220px] overflow-y-auto border border-slate-150 rounded-2xl bg-white p-3.5 space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {sortedNodesAlpha.map(n => (
+                          <div 
+                            key={n.id} 
+                            style={{ borderLeftColor: colorsByType[n.type] || '#cbd5e1' }}
+                            className="p-2.5 border-l-3 border border-slate-150 bg-slate-50/50 rounded-xl flex items-center justify-between text-[11px] hover:border-slate-350 transition duration-150"
+                          >
+                            <div className="truncate pr-1.5">
+                              <span className="font-bold text-slate-800 block truncate">{n.name}</span>
+                              <span className="text-[9px] text-slate-400 font-extrabold block tracking-tight">{n.type}</span>
+                            </div>
+                            <span 
+                              className="text-[9px] font-mono text-slate-450 hover:text-indigo-700 bg-white border border-slate-200 hover:border-slate-300 font-black px-2 py-1 rounded-lg transition shrink-0 cursor-pointer"
+                              title="Klik untuk menyalin ID unik"
+                              onClick={() => {
+                                navigator.clipboard.writeText(n.id);
+                                alert(`ID disalin! ${n.id}`);
+                              }}
+                            >
+                              Salin ID
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
               </div>
             )}
           </div>
@@ -1004,6 +1422,13 @@ export default function AdminDashboard({
                     )}
                   </div>
                 </div>
+
+                <FileUploader 
+                  label="Berkas / Foto / PDF Dokumen Source (Unggah ke Cloudinary)" 
+                  value={editSourceFile} 
+                  onChange={setEditSourceFile} 
+                  idPrefix="node-edit" 
+                />
 
                 {/* Submits */}
                 <div className="flex gap-4 items-center">
